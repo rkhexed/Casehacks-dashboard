@@ -13,12 +13,18 @@ export default function Home() {
           </p>
         </div>
         
-        <div className="flex flex-col gap-4 mt-8">
+        <div className="flex flex-col sm:flex-row gap-4 mt-8">
           <Link 
-            href="/dashboard"
+            href="/login"
             className="px-8 py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors"
           >
-            Go to Dashboard
+            Sign In
+          </Link>
+          <Link 
+            href="/signup"
+            className="px-8 py-3 bg-card border-2 border-primary text-primary rounded-lg font-medium hover:bg-primary/10 transition-colors"
+          >
+            Request Access
           </Link>
         </div>
         
