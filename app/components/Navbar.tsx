@@ -14,6 +14,15 @@ export default function Navbar() {
           <Link href="/events" className="text-sm text-foreground/80 hover:text-primary transition-colors">
             Events
           </Link>
+          <Link href="/scan" className="text-sm text-foreground/80 hover:text-primary transition-colors">
+            Scan
+          </Link>
+          <Link href="/dashboard/hackers" className="text-sm text-foreground/80 hover:text-primary transition-colors">
+            Hackers
+          </Link>
+          <Link href="/dashboard/questions" className="text-sm text-foreground/80 hover:text-primary transition-colors">
+            Questions
+          </Link>
           <Link href="/admin/approve" className="text-sm text-foreground/80 hover:text-primary transition-colors">
             Admin
           </Link>
