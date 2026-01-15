@@ -17,6 +17,7 @@ export type Question = {
   sort_order: number;
   is_required: boolean;
   created_at: string;
+  field_key: string | null;
 };
 
 export type NewQuestion = Omit<Question, 'id' | 'created_at'>;

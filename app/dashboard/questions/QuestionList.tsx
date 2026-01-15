@@ -56,6 +56,18 @@ function SortableItem({ id, children }: { id: string; children: (listeners: any,
   );
 }
 
+const FIELD_KEY_OPTIONS = [
+  { value: '', label: 'No mapping (custom question)' },
+  { value: 'school', label: 'School' },
+  { value: 'year', label: 'Graduation Year' },
+  { value: 'dietary', label: 'Dietary Restrictions' },
+  { value: 'tshirt_size', label: 'T-Shirt Size' },
+  { value: 'github', label: 'GitHub' },
+  { value: 'linkedin', label: 'LinkedIn' },
+  { value: 'portfolio', label: 'Portfolio / Website' },
+  { value: 'status', label: 'Application Status' },
+];
+
 export default function QuestionList({ initialQuestions }: { initialQuestions: Question[] }) {
   const [questions, setQuestions] = useState<Question[]>(initialQuestions);
   const [isEditing, setIsEditing] = useState<string | null>(null);
@@ -69,6 +81,7 @@ export default function QuestionList({ initialQuestions }: { initialQuestions: Q
     options: null,
     sort_order: 0,
     is_required: true,
+    field_key: null,
   });
 
   const sensors = useSensors(
@@ -85,6 +98,7 @@ export default function QuestionList({ initialQuestions }: { initialQuestions: Q
       options: null,
       sort_order: questions.length + 1,
       is_required: true,
+      field_key: null,
     });
     setOptionsInput('');
     setIsEditing(null);
@@ -97,6 +111,7 @@ export default function QuestionList({ initialQuestions }: { initialQuestions: Q
       options: (formData.question_type === 'multiple_choice' || formData.question_type === 'checkbox') 
         ? optionsInput.split(',').map(s => s.trim()).filter(s => s)
         : null,
+      field_key: formData.field_key || null,
     };
 
     if (isCreating) {
@@ -135,6 +150,7 @@ export default function QuestionList({ initialQuestions }: { initialQuestions: Q
       options: q.options,
       sort_order: q.sort_order,
       is_required: q.is_required,
+      field_key: q.field_key,
     });
     setOptionsInput(q.options ? q.options.join(', ') : '');
     setIsEditing(q.id);
@@ -227,6 +243,24 @@ export default function QuestionList({ initialQuestions }: { initialQuestions: Q
               </div>
             </div>
 
+            <div>
+              <label className="block text-sm font-medium mb-1">Map to profile field (optional)</label>
+              <select
+                value={formData.field_key ?? ''}
+                onChange={e => setFormData({ ...formData, field_key: e.target.value || null })}
+                className="w-full px-3 py-2 border rounded-md bg-background"
+              >
+                {FIELD_KEY_OPTIONS.map(option => (
+                  <option key={option.value || 'none'} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-foreground/60">
+                When set, answers will sync back to the corresponding column in the users table.
+              </p>
+            </div>
+
             {(formData.question_type === 'multiple_choice' || formData.question_type === 'checkbox') && (
               <div>
                 <label className="block text-sm font-medium mb-1">Options (comma separated)</label>
@@ -289,6 +323,11 @@ export default function QuestionList({ initialQuestions }: { initialQuestions: Q
                           <span className="font-semibold text-lg">{q.question_text}</span>
                           {q.is_required && <span className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded">Required</span>}
                           <span className="text-xs bg-gray-100 text-gray-800 px-2 py-0.5 rounded uppercase">{q.question_type.replace('_', ' ')}</span>
+                          {q.field_key && (
+                            <span className="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded">
+                              Maps to {FIELD_KEY_OPTIONS.find(opt => opt.value === q.field_key)?.label ?? q.field_key}
+                            </span>
+                          )}
                         </div>
                         {q.options && (
                           <div className="text-sm text-foreground/60">
