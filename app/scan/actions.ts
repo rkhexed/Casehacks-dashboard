@@ -1,25 +1,10 @@
 'use server';
 
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { createServerActionClient } from '@/lib/supabase';
 
 export async function checkInUser(userId: string, eventId: string) {
-  const cookieStore = await cookies();
   
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        set() {},
-        remove() {},
-      },
-    }
-  );
-
+  const supabase = await createServerActionClient();
   // First, get the user details
   const { data: user, error: userError } = await supabase
     .from('users')
@@ -64,21 +49,8 @@ export async function checkInUser(userId: string, eventId: string) {
 }
 
 export async function getEvents() {
-  const cookieStore = await cookies();
   
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        set() {},
-        remove() {},
-      },
-    }
-  );
+  const supabase = await createServerActionClient();
 
   const { data, error } = await supabase
     .from('events')
@@ -93,21 +65,8 @@ export async function getEvents() {
 }
 
 export async function getEventCheckins(eventId: string) {
-  const cookieStore = await cookies();
-  
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        set() {},
-        remove() {},
-      },
-    }
-  );
+
+  const supabase = await createServerActionClient();
 
   const { data, error } = await supabase
     .from('checkins')
@@ -123,21 +82,8 @@ export async function getEventCheckins(eventId: string) {
 }
 
 export async function getDashboardStats() {
-  const cookieStore = await cookies();
   
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        set() {},
-        remove() {},
-      },
-    }
-  );
+  const supabase = await createServerActionClient();
 
   const { count: totalCheckins } = await supabase
     .from('checkins')
@@ -154,21 +100,8 @@ export async function getDashboardStats() {
 }
 
 export async function getRecentCheckins() {
-  const cookieStore = await cookies();
   
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        set() {},
-        remove() {},
-      },
-    }
-  );
+  const supabase = await createServerActionClient();
 
   const { data, error } = await supabase
     .from('checkins')
