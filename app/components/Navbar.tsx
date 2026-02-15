@@ -23,6 +23,9 @@ export default function Navbar() {
           <Link href="/dashboard/questions" className="text-sm text-foreground/80 hover:text-primary transition-colors">
             Questions
           </Link>
+          <Link href="/dashboard/team-matching" className="text-sm text-foreground/80 hover:text-primary transition-colors">
+            Team Matching
+          </Link>
           <Link href="/admin/approve" className="text-sm text-foreground/80 hover:text-primary transition-colors">
             Admin
           </Link>
