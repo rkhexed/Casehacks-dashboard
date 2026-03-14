@@ -31,32 +31,31 @@ export default function DashboardPage() {
   const supabase = createBrowserClient();
 
   const fetchData = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      setUserEmail(user.email || null);
-    }
-
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    const { data: eventsData, error: eventsError } = await supabase
-      .from('events')
-      .select('*')
-      .gte('starts_at', today.toISOString())
-      .lt('starts_at', tomorrow.toISOString())
-      .order('starts_at', { ascending: true });
+    const [userResult, eventsResult, statsData, checkinsResult] = await Promise.all([
+      supabase.auth.getUser(),
+      supabase
+        .from('events')
+        .select('*')
+        .gte('starts_at', today.toISOString())
+        .lt('starts_at', tomorrow.toISOString())
+        .order('starts_at', { ascending: true }),
+      getDashboardStats(),
+      getRecentCheckins(),
+    ]);
 
-    if (!eventsError && eventsData) {
-      setTodaysEvents(eventsData);
+    if (userResult.data.user) {
+      setUserEmail(userResult.data.user.email || null);
     }
-
-    const statsData = await getDashboardStats();
+    if (!eventsResult.error && eventsResult.data) {
+      setTodaysEvents(eventsResult.data);
+    }
     setStats(statsData);
-
-    const { checkins: recentCheckinsData } = await getRecentCheckins();
-    setRecentCheckins(recentCheckinsData);
+    setRecentCheckins(checkinsResult.checkins);
 
   }, [supabase]);
 

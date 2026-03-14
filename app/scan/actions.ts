@@ -1,6 +1,6 @@
 'use server';
 
-import { createServerActionClient } from '@/lib/supabase';
+import { createServerActionClient } from '@/lib/supabase-server';
 
 export async function checkInUser(userId: string, eventId: string) {
   
