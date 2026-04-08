@@ -41,6 +41,53 @@ export async function checkInUser(userId: string, eventId: string) {
     return { error: checkinError.message, success: false };
   }
 
+  // Could be bad if the checkin goes through but points dont will have to manually reset it. Maybe more validation before adding points?
+
+  // Get current points for event attendance of user
+  const { data: userAttendancePoints, error: pointsError } = await supabase
+    .from('users')
+    .select('event_attendance_points')
+    .eq('id', userId)
+    .single();
+
+  // Error handling
+  if (pointsError || !userAttendancePoints) {
+    return { error: 'Failed to retrieve user points', success: false };
+  }
+
+  const { data: eventPointsValue, error: eventPointsError } = await supabase
+    .from('events')
+    .select('point_value')
+    .eq('id', eventId)
+    .single();
+
+  if (eventPointsError || !eventPointsValue) {
+    return { error: 'Failed to retrieve event points value', success: false };
+  }
+
+  // Mmmm slop math, probably good to have some validation though
+  const currentPoints = Number(userAttendancePoints.event_attendance_points ?? 0);
+  console.log('Current points:', currentPoints);
+  const eventPoints = Number(eventPointsValue.point_value ?? 0);
+  console.log('Event points:', eventPoints);
+  const newPointValue = currentPoints + eventPoints;
+  console.log('New point value:', newPointValue);
+
+  const { data: updatedRows, error: updatePointsError } = await supabase
+    .from('users')
+    .update({ event_attendance_points: newPointValue })
+    .eq('id', userId)
+    .select('id, event_attendance_points');
+
+
+  console.log('update error:', updatePointsError);
+  console.log('updated rows:', updatedRows);
+
+
+  if (updatePointsError) {
+    return { error: updatePointsError.message, success: false };
+  }
+
   return { 
     success: true, 
     userName: user.name || user.email,
