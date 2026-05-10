@@ -10,11 +10,6 @@ export function createBrowserClient() {
   return createBrowserSupabaseClient(supabaseUrl, supabaseAnonKey);
 }
 
-// Server client - for server components
-export function createServerClient() {
-  return createClient(supabaseUrl, supabaseAnonKey);
-}
-
 // Admin client - bypasses RLS using service role key
 export function createAdminClient() {
   return createClient(supabaseUrl, supabaseServiceRoleKey, {

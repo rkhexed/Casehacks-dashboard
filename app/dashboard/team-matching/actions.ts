@@ -6,14 +6,12 @@ import { createClient } from '@supabase/supabase-js';
 // Types
 // ---------------------------------------------------------------------------
 
-type MajorCategory = 'business' | 'cs' | 'other';
 type GenderCategory = 'male' | 'female' | 'other';
 
-interface Participant {
+export interface Participant {
   id: string;
   name: string;
   gender: GenderCategory;
-  major: MajorCategory;
   team_id: string | null;
 }
 
@@ -26,6 +24,7 @@ interface ProposedTeam {
   team_id: string | null;          // null = brand-new team
   existing_members: Participant[];  // already on the team
   new_members: Participant[];       // assigned by the algorithm
+  isLeftover?: boolean;            // incomplete group that couldn't form a full team
 }
 
 export interface MatchingResult {
@@ -53,57 +52,17 @@ function classifyGender(raw: string): GenderCategory {
   return 'other';
 }
 
-function classifyMajor(raw: string): MajorCategory {
-  const m = raw.toLowerCase().trim();
-  if (
-    m.includes('business') ||
-    m.includes('commerce') ||
-    m.includes('finance') ||
-    m.includes('accounting') ||
-    m.includes('marketing') ||
-    m.includes('management') ||
-    m.includes('economics') ||
-    m.includes('bba') ||
-    m.includes('mba')
-  ) return 'business';
-  if (
-    m.includes('computer') ||
-    m.includes('software') ||
-    m.includes('cs') ||
-    m.includes('computing') ||
-    m.includes('informatics') ||
-    m.includes('data science') ||
-    m.includes('engineering') ||
-    m.includes('math')
-  ) return 'cs';
-  return 'other';
-}
-
 /**
- * Score how well a candidate fills a gap in a team.
- * Higher = better fit.  Max possible score = 2 (fills both a gender AND major gap).
+ * Score how well a candidate fills a gender gap in a team.
+ * Higher = better fit. Max score = 1 (fills a gender need).
  */
-function fitScore(
-  team: Participant[],
-  candidate: Participant,
-  targetSize = 4,
-): number {
+function fitScore(team: Participant[], candidate: Participant): number {
   const males   = team.filter(p => p.gender === 'male').length;
   const females = team.filter(p => p.gender === 'female').length;
-  const biz     = team.filter(p => p.major === 'business').length;
-  const cs      = team.filter(p => p.major === 'cs').length;
 
-  let score = 0;
-
-  // Gender balance: ideal is 2M / 2F
-  if (candidate.gender === 'male'   && males < 2)   score += 1;
-  if (candidate.gender === 'female' && females < 2)  score += 1;
-
-  // Major balance: ideal is 2 business / 2 CS
-  if (candidate.major === 'business' && biz < 2) score += 1;
-  if (candidate.major === 'cs'       && cs < 2)  score += 1;
-
-  return score;
+  if (candidate.gender === 'male'   && males < 2)   return 1;
+  if (candidate.gender === 'female' && females < 2)  return 1;
+  return 0;
 }
 
 /**
@@ -127,9 +86,7 @@ function pickBest(team: Participant[], pool: Participant[]): number {
 function isIdealTeam(members: Participant[]): boolean {
   const males   = members.filter(p => p.gender === 'male').length;
   const females = members.filter(p => p.gender === 'female').length;
-  const biz     = members.filter(p => p.major === 'business').length;
-  const cs      = members.filter(p => p.major === 'cs').length;
-  return males === 2 && females === 2 && biz === 2 && cs === 2;
+  return males === 2 && females === 2;
 }
 
 // ---------------------------------------------------------------------------
@@ -180,52 +137,31 @@ function buildTeams(
   }
 
   // ── Phase 2: Form new teams of 4 from remaining singles ───────────────
-  // Bucket participants into 4 ideal categories
-  type Bucket = 'male_biz' | 'male_cs' | 'female_biz' | 'female_cs' | 'other';
-
-  const buckets: Record<string, Participant[]> = {
-    male_biz: [],
-    male_cs: [],
-    female_biz: [],
-    female_cs: [],
-    other: [],
-  };
+  // Bucket by gender only
+  const buckets: Record<string, Participant[]> = { male: [], female: [], other: [] };
 
   for (const p of pool) {
-    if (p.gender === 'male' && p.major === 'business') buckets.male_biz.push(p);
-    else if (p.gender === 'male' && p.major === 'cs') buckets.male_cs.push(p);
-    else if (p.gender === 'female' && p.major === 'business') buckets.female_biz.push(p);
-    else if (p.gender === 'female' && p.major === 'cs') buckets.female_cs.push(p);
+    if (p.gender === 'male') buckets.male.push(p);
+    else if (p.gender === 'female') buckets.female.push(p);
     else buckets.other.push(p);
   }
 
-  // Greedily form ideal teams: 1 from each of the 4 main buckets
-  while (
-    buckets.male_biz.length > 0 &&
-    buckets.male_cs.length > 0 &&
-    buckets.female_biz.length > 0 &&
-    buckets.female_cs.length > 0
-  ) {
+  // Greedily form gender-balanced teams: 2M + 2F
+  while (buckets.male.length >= 2 && buckets.female.length >= 2) {
     proposed.push({
       team_id: null,
       existing_members: [],
       new_members: [
-        buckets.male_biz.pop()!,
-        buckets.male_cs.pop()!,
-        buckets.female_biz.pop()!,
-        buckets.female_cs.pop()!,
+        buckets.male.pop()!,
+        buckets.male.pop()!,
+        buckets.female.pop()!,
+        buckets.female.pop()!,
       ],
     });
   }
 
-  // Remaining participants that didn't fit a perfect quad
-  const remaining = [
-    ...buckets.male_biz,
-    ...buckets.male_cs,
-    ...buckets.female_biz,
-    ...buckets.female_cs,
-    ...buckets.other,
-  ];
+  // Remaining participants that didn't fit a perfect gender pair
+  const remaining = [...buckets.male, ...buckets.female, ...buckets.other];
 
   // Form best-effort teams of 4 from leftovers using greedy scoring
   while (remaining.length >= 4) {
@@ -241,8 +177,16 @@ function buildTeams(
     });
   }
 
-  // Anyone left over (1-3 people) stays unmatched
-  return { proposed, unmatched: remaining };
+  // Any remaining (1-3 people) go into a leftover team so they still get assigned
+  if (remaining.length > 0) {
+    proposed.push({
+      team_id: null,
+      existing_members: [],
+      new_members: remaining,
+      isLeftover: true,
+    });
+  }
+  return { proposed, unmatched: [] };
 }
 
 // ---------------------------------------------------------------------------
@@ -266,8 +210,7 @@ export async function previewTeamMatching(): Promise<MatchingResult> {
   // 1. Fetch all accepted hackers
   const { data: hackers, error } = await supabase
     .from('users')
-    .select('id, name, gender, major, team_id')
-    .eq('role', 'hacker')
+    .select('id, name, gender, team_id')
     .eq('status', 'accepted');
 
   if (error) {
@@ -285,7 +228,6 @@ export async function previewTeamMatching(): Promise<MatchingResult> {
     id: h.id,
     name: h.name ?? 'Unknown',
     gender: classifyGender(h.gender ?? ''),
-    major: classifyMajor(h.major ?? ''),
     team_id: h.team_id,
   }));
 
@@ -334,53 +276,54 @@ export async function previewTeamMatching(): Promise<MatchingResult> {
 }
 
 /**
- * Apply the matching: create new teams in the `teams` table and update
- * each user's `team_id`.
+ * Apply the manually-arranged teams from the UI (respects drag-and-drop changes).
+ * Takes the current client state so re-running the algorithm is not needed.
  */
-export async function applyTeamMatching(): Promise<{ success: boolean; error?: string }> {
+export async function applyProposedTeams(
+  teams: Array<{ team_id: string | null; isLeftover: boolean; memberIds: string[] }>
+): Promise<{ success: boolean; error?: string }> {
   const supabase = getSupabase();
 
-  const result = await previewTeamMatching();
-  if (!result.success) return { success: false, error: result.error };
+  // Fetch names in one round-trip for auto-naming new teams
+  const allIds = teams.flatMap(t => t.memberIds);
+  const { data: users } = await supabase
+    .from('users')
+    .select('id, name')
+    .in('id', allIds);
+  const nameMap = Object.fromEntries((users ?? []).map(u => [u.id, u.name ?? u.id]));
 
-  // Process each proposed team
-  for (const team of result.proposed_teams) {
+  for (const team of teams) {
+    if (team.memberIds.length === 0) continue;
+
     let teamId = team.team_id;
 
-    // Create a new team row if this is a brand-new team
     if (!teamId) {
-      const memberNames = team.new_members.map(m => m.name).join(', ');
+      const teamName = team.isLeftover
+        ? 'Leftover Team'
+        : `Auto-Team: ${team.memberIds.map(id => nameMap[id]).join(', ')}`.slice(0, 100);
+
       const { data: newTeam, error: createErr } = await supabase
         .from('teams')
-        .insert({
-          name: `Auto-Team: ${memberNames}`.slice(0, 100),
-          has_space: false,
-        })
+        .insert({ name: teamName, has_space: team.memberIds.length < 4 })
         .select('id')
         .single();
 
       if (createErr || !newTeam) {
-        console.error('Failed to create team:', createErr?.message);
-        continue;
+        return { success: false, error: `Failed to create team: ${createErr?.message}` };
       }
       teamId = newTeam.id;
     } else {
-      // Update existing team: mark as full if now at 4
-      const totalSize = team.existing_members.length + team.new_members.length;
-      if (totalSize >= 4) {
-        await supabase
-          .from('teams')
-          .update({ has_space: false })
-          .eq('id', teamId);
-      }
+      await supabase
+        .from('teams')
+        .update({ has_space: team.memberIds.length < 4 })
+        .eq('id', teamId);
     }
 
-    // Assign new members to the team
-    for (const member of team.new_members) {
+    for (const memberId of team.memberIds) {
       await supabase
         .from('users')
         .update({ team_id: teamId })
-        .eq('id', member.id);
+        .eq('id', memberId);
     }
   }
 

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Navbar from "./components/Navbar";
+import { Toaster } from 'sonner';
 
 export const metadata: Metadata = {
   title: "CaseHacks Dashboard",
@@ -17,6 +18,7 @@ export default function RootLayout({
       <body className="antialiased" suppressHydrationWarning>
         <Navbar />
         {children}
+        <Toaster position="top-right" richColors />
       </body>
     </html>
   );

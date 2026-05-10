@@ -2,9 +2,10 @@
 
 import { createBrowserClient } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { getDashboardStats, getRecentCheckins } from '../scan/actions';
 import QrScanner from '../components/QrScanner';
+import DashboardLoading from './loading';
 
 interface Event {
   id: string;
@@ -27,46 +28,87 @@ export default function DashboardPage() {
   const [todaysEvents, setTodaysEvents] = useState<Event[]>([]);
   const [stats, setStats] = useState({ totalCheckins: 0, totalParticipants: 0 });
   const [recentCheckins, setRecentCheckins] = useState<RecentCheckin[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const router = useRouter();
-  const supabase = createBrowserClient();
+  const supabase = useMemo(() => createBrowserClient(), []);
 
   const fetchData = useCallback(async () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    setIsLoading(true);
+    setFetchError(null);
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
 
-    const [userResult, eventsResult, statsData, checkinsResult] = await Promise.all([
-      supabase.auth.getUser(),
-      supabase
-        .from('events')
-        .select('*')
-        .gte('starts_at', today.toISOString())
-        .lt('starts_at', tomorrow.toISOString())
-        .order('starts_at', { ascending: true }),
-      getDashboardStats(),
-      getRecentCheckins(),
-    ]);
+      const [userResult, eventsResult, statsData, checkinsResult] = await Promise.all([
+        supabase.auth.getUser(),
+        supabase
+          .from('events')
+          .select('*')
+          .gte('starts_at', today.toISOString())
+          .lt('starts_at', tomorrow.toISOString())
+          .order('starts_at', { ascending: true }),
+        getDashboardStats(),
+        getRecentCheckins(),
+      ]);
 
-    if (userResult.data.user) {
-      setUserEmail(userResult.data.user.email || null);
+      if (userResult.data.user) {
+        setUserEmail(userResult.data.user.email || null);
+      }
+      if (!eventsResult.error && eventsResult.data) {
+        setTodaysEvents(eventsResult.data);
+      }
+      setStats(statsData);
+      setRecentCheckins(checkinsResult.checkins);
+    } catch {
+      setFetchError('Failed to load dashboard data. Please refresh.');
+    } finally {
+      setIsLoading(false);
     }
-    if (!eventsResult.error && eventsResult.data) {
-      setTodaysEvents(eventsResult.data);
-    }
-    setStats(statsData);
-    setRecentCheckins(checkinsResult.checkins);
-
   }, [supabase]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
+  // Real-time: listen for new check-ins and update stats + feed live
+  useEffect(() => {
+    const channel = supabase
+      .channel('dashboard-checkins')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'checkins' },
+        (payload) => {
+          setStats((prev) => ({ ...prev, totalCheckins: prev.totalCheckins + 1 }));
+          const newCheckin = payload.new as RecentCheckin;
+          setRecentCheckins((prev) => [newCheckin, ...prev].slice(0, 5));
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [supabase]);
+
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     router.push('/login');
   };
+
+  if (isLoading) return <DashboardLoading />;
+
+  if (fetchError) return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="p-8 bg-card rounded-lg border border-red-500/30 text-red-400 text-center max-w-md">
+        <p className="font-semibold mb-2">Something went wrong</p>
+        <p className="text-sm">{fetchError}</p>
+        <button onClick={fetchData} className="mt-4 px-4 py-2 bg-primary text-white rounded-lg text-sm hover:bg-primary/90">
+          Retry
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-background p-8">

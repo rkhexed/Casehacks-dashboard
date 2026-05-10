@@ -79,12 +79,12 @@ export default async function HackerProfilePage({ params }: HackerProfileProps) 
             <div className="md:col-span-2 space-y-1">
               <p className="text-sm font-medium text-foreground/60">Portfolio/Website</p>
               <p className="text-base text-primary hover:underline">
-                {hacker.portfolio ? <a href={hacker.portfolio} target="_blank" rel="noopener noreferrer">{hacker.portfolio}</a> : 'N/A'}
+                {hacker.other ? <a href={hacker.other} target="_blank" rel="noopener noreferrer">{hacker.other}</a> : 'N/A'}
               </p>
             </div>
             <div className="md:col-span-2 space-y-1">
-              <p className="text-sm font-medium text-foreground/60">Points</p>
-              <p className="text-base text-foreground">{hacker.points ?? 0}</p>
+              <p className="text-sm font-medium text-foreground/60">Attendance Points</p>
+              <p className="text-base text-foreground">{hacker.event_attendance_points ?? 0}</p>
             </div>
           </div>
         </div>

@@ -71,28 +71,6 @@ async function deleteApproval(email: string) {
   }
 }
 
-export async function approveOrganizerAction(
-  _prevState: { status: 'idle' | 'success' | 'error'; message?: string },
-  formData: FormData
-): Promise<{ status: 'idle' | 'success' | 'error'; message?: string }> {
-  const email = (formData.get('email') as string | null)?.trim().toLowerCase();
-  const notes = (formData.get('notes') as string | null)?.trim() || null;
-
-  if (!email) {
-    return { status: 'error', message: 'Email is required' };
-  }
-
-  try {
-    const approver = await assertApprover();
-    await upsertApproval(email, notes, approver);
-    revalidatePath('/admin/approve');
-    return { status: 'success', message: `${email} approved` };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unable to approve organizer';
-    return { status: 'error', message };
-  }
-}
-
 export async function approveOrganizerQuick(formData: FormData) {
   const email = (formData.get('email') as string | null)?.trim().toLowerCase();
   if (!email) return;

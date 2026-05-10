@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createBrowserClient } from '@/lib/supabase';
 import { deleteEvent } from './actions';
+import { toast } from 'sonner';
 
 interface Event {
   id: string;
@@ -39,8 +40,9 @@ export default function EventsPage() {
     if (confirm('Are you sure you want to delete this event?')) {
       const result = await deleteEvent(id);
       if (result?.error) {
-        setError(result.error);
+        toast.error(result.error);
       } else {
+        toast.success('Event deleted');
         fetchEvents();
       }
     }
@@ -62,6 +64,14 @@ export default function EventsPage() {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
 
+    const startsAt = formData.get('starts_at') as string;
+    const endsAt = formData.get('ends_at') as string;
+
+    if (new Date(startsAt) >= new Date(endsAt)) {
+      setError('Start time must be before end time.');
+      return;
+    }
+
     const eventData = {
       title: formData.get('title') as string,
       description: formData.get('description') as string || null,
@@ -80,6 +90,7 @@ export default function EventsPage() {
       if (error) {
         setError(error.message);
       } else {
+        toast.success('Event updated');
         closeModal();
         fetchEvents();
       }
@@ -92,6 +103,7 @@ export default function EventsPage() {
       if (error) {
         setError(error.message);
       } else {
+        toast.success('Event created');
         closeModal();
         fetchEvents();
       }

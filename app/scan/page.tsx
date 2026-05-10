@@ -153,7 +153,11 @@ export default function ScanPage() {
                         Start Scanning
                       </button>
                       {message && (
-                        <div className={`p-4 rounded-lg ${
+                        <div
+                          role="status"
+                          aria-live="polite"
+                          aria-atomic="true"
+                          className={`p-4 rounded-lg ${
                           message.type === 'success' 
                             ? 'bg-green-50 border border-green-200' 
                             : 'bg-red-50 border border-red-200'

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { toast } from 'sonner';
 import { Question, NewQuestion, createQuestion, updateQuestion, deleteQuestion, updateQuestionOrder } from './actions';
 import {
   DndContext,
@@ -119,16 +120,18 @@ export default function QuestionList({ initialQuestions }: { initialQuestions: Q
         const newQ = await createQuestion(finalFormData);
         setQuestions([...questions, newQ].sort((a, b) => a.sort_order - b.sort_order));
         resetForm();
+        toast.success('Question created');
       } catch (e) {
-        alert('Failed to create question');
+        toast.error('Failed to create question');
       }
     } else if (isEditing) {
       try {
         const updatedQ = await updateQuestion(isEditing, finalFormData);
         setQuestions(questions.map(q => q.id === isEditing ? updatedQ : q).sort((a, b) => a.sort_order - b.sort_order));
         resetForm();
+        toast.success('Question updated');
       } catch (e) {
-        alert('Failed to update question');
+        toast.error('Failed to update question');
       }
     }
   };
@@ -138,8 +141,9 @@ export default function QuestionList({ initialQuestions }: { initialQuestions: Q
     try {
       await deleteQuestion(id);
       setQuestions(questions.filter(q => q.id !== id));
+      toast.success('Question deleted');
     } catch (e) {
-      alert('Failed to delete question');
+      toast.error('Failed to delete question');
     }
   };
 
@@ -181,7 +185,7 @@ export default function QuestionList({ initialQuestions }: { initialQuestions: Q
       
       updateQuestionOrder(updatedOrderForServer).catch(err => {
         console.error("Failed to update question order:", err);
-        alert("Failed to save the new order. The page will revert to the last saved order.");
+        toast.error("Failed to save the new order. The page will revert.");
         // Revert to the old state on failure
         setQuestions(oldItems);
       });

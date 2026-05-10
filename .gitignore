@@ -40,3 +40,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# test/seed data scripts
+app/dashboard/team-matching/testdata.py
+/scripts

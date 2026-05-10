@@ -13,6 +13,7 @@ export async function checkInUser(userId: string, eventId: string) {
     .single();
 
   if (userError || !user) {
+    console.error('[checkInUser] user lookup failed:', userError);
     return { error: 'User not found', success: false };
   }
 
@@ -52,6 +53,7 @@ export async function checkInUser(userId: string, eventId: string) {
 
   // Error handling
   if (pointsError || !userAttendancePoints) {
+    console.error('[checkInUser] points fetch failed:', pointsError);
     return { error: 'Failed to retrieve user points', success: false };
   }
 
@@ -62,6 +64,7 @@ export async function checkInUser(userId: string, eventId: string) {
     .single();
 
   if (eventPointsError || !eventPointsValue) {
+    console.error('[checkInUser] event points fetch failed:', eventPointsError);
     return { error: 'Failed to retrieve event points value', success: false };
   }
 
@@ -85,6 +88,7 @@ export async function checkInUser(userId: string, eventId: string) {
 
 
   if (updatePointsError) {
+    console.error('[checkInUser] points update failed:', updatePointsError);
     return { error: updatePointsError.message, success: false };
   }
 
@@ -99,10 +103,14 @@ export async function getEvents() {
   
   const supabase = await createServerActionClient();
 
+  // Grace period: show events that ended up to 2 hours ago
+  const cutoff = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+
   const { data, error } = await supabase
     .from('events')
     .select('id, title, starts_at, ends_at')
-    .order('starts_at', { ascending: false });
+    .gte('ends_at', cutoff)
+    .order('starts_at', { ascending: true });
 
   if (error) {
     return { events: [], error: error.message };

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { checkInUser, getEventCheckins } from '../scan/actions';
 
@@ -34,20 +34,19 @@ export default function QrScanner({ events, onCheckinSuccess }: QrScannerProps) 
     }
   }, [events, selectedEventId]);
 
-  useEffect(() => {
-    if (selectedEventId) {
-      loadCheckins();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedEventId, onCheckinSuccess]);
-
-  const loadCheckins = async () => {
+  const loadCheckins = useCallback(async () => {
     if (!selectedEventId) return;
     const { checkins: checkinsData, error } = await getEventCheckins(selectedEventId);
     if (!error && checkinsData) {
       setCheckins(checkinsData);
     }
-  };
+  }, [selectedEventId]);
+
+  useEffect(() => {
+    if (selectedEventId) {
+      loadCheckins();
+    }
+  }, [loadCheckins, onCheckinSuccess]);
 
   const handleScan = async (detectedCodes: any[]) => {
     if (!scanning || !selectedEventId || detectedCodes.length === 0) return;
@@ -112,11 +111,16 @@ export default function QrScanner({ events, onCheckinSuccess }: QrScannerProps) 
             Start Scanning
           </button>
           {message && (
-            <div className={`p-4 rounded-lg ${
+            <div
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            className={`p-4 rounded-lg ${
               message.type === 'success' 
                 ? 'bg-green-50 border border-green-200' 
                 : 'bg-red-50 border border-red-200'
-            }`}>
+            }`}
+          >
               <p className={`text-sm font-medium ${
                 message.type === 'success' ? 'text-green-800' : 'text-red-800'
               }`}>

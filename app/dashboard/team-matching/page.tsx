@@ -1,45 +1,133 @@
 'use client';
 
-import { useState } from 'react';
-import { previewTeamMatching, applyTeamMatching } from './actions';
-import type { MatchingResult } from './actions';
+import { useState, useMemo } from 'react';
+import { toast } from 'sonner';
+import { previewTeamMatching, applyProposedTeams } from './actions';
+import type { Participant } from './actions';
+
+interface DragTeam {
+  key: string;
+  team_id: string | null;
+  isLeftover: boolean;
+  members: Participant[];
+}
 
 export default function TeamMatchingPage() {
-  const [result, setResult] = useState<MatchingResult | null>(null);
+  const [teams, setTeams] = useState<DragTeam[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [applying, setApplying] = useState(false);
   const [applied, setApplied] = useState(false);
 
+  // drag state: which participant from which team is being dragged
+  const [dragging, setDragging] = useState<{ teamKey: string; memberId: string } | null>(null);
+  const [dragOverTeam, setDragOverTeam] = useState<string | null>(null);
+
   const handlePreview = async () => {
     setLoading(true);
     setApplied(false);
+    setError(null);
     try {
       const data = await previewTeamMatching();
-      setResult(data);
+      if (!data.success) {
+        setError(data.error ?? 'Algorithm error');
+        setTeams([]);
+        return;
+      }
+      if (data.stats.total_participants === 0) {
+        setError('No accepted participants found. Make sure applicants have been approved before running matching.');
+        setTeams([]);
+        return;
+      }
+      // Flatten proposed_teams into DragTeam[] (unmatched is now always empty)
+      setTeams(
+        data.proposed_teams.map((t, i) => ({
+          key: `team-${i}`,
+          team_id: t.team_id,
+          isLeftover: t.isLeftover ?? false,
+          members: [...t.existing_members, ...t.new_members],
+        }))
+      );
     } catch (err) {
       console.error(err);
+      setError('Unexpected error running algorithm.');
     } finally {
       setLoading(false);
     }
   };
 
   const handleApply = async () => {
-    if (!confirm('This will create teams and assign participants. Continue?')) return;
+    if (!confirm('This will create teams and assign all participants. Continue?')) return;
     setApplying(true);
     try {
-      const res = await applyTeamMatching();
+      const payload = teams.map(t => ({
+        team_id: t.team_id,
+        isLeftover: t.isLeftover,
+        memberIds: t.members.map(m => m.id),
+      }));
+      const res = await applyProposedTeams(payload);
       if (res.success) {
         setApplied(true);
+        toast.success('Teams applied successfully!');
       } else {
-        alert('Error applying teams: ' + res.error);
+        toast.error('Error applying teams: ' + res.error);
       }
     } catch (err) {
       console.error(err);
-      alert('Unexpected error applying teams.');
+      toast.error('Unexpected error applying teams.');
     } finally {
       setApplying(false);
     }
   };
+
+  // ── Drag handlers ──────────────────────────────────────────────────────
+  const onDragStart = (teamKey: string, memberId: string) => {
+    setDragging({ teamKey, memberId });
+  };
+
+  const onDragOver = (e: React.DragEvent, teamKey: string) => {
+    e.preventDefault();
+    setDragOverTeam(teamKey);
+  };
+
+  const onDrop = (targetTeamKey: string) => {
+    if (!dragging || dragging.teamKey === targetTeamKey) {
+      setDragging(null);
+      setDragOverTeam(null);
+      return;
+    }
+
+    setTeams(prev => {
+      const next = prev.map(t => ({ ...t, members: [...t.members] }));
+      const src = next.find(t => t.key === dragging.teamKey)!;
+      const dst = next.find(t => t.key === targetTeamKey)!;
+      const memberIdx = src.members.findIndex(m => m.id === dragging.memberId);
+      if (memberIdx === -1) return prev;
+      const [member] = src.members.splice(memberIdx, 1);
+      dst.members.push(member);
+      return next;
+    });
+
+    setDragging(null);
+    setDragOverTeam(null);
+  };
+
+  const onDragEnd = () => {
+    setDragging(null);
+    setDragOverTeam(null);
+  };
+
+  // ── Derived stats from live team state ───────────────────────────────
+  const stats = useMemo(() => {
+    const idealTeams = teams.filter(t => {
+      if (t.members.length !== 4) return false;
+      const males = t.members.filter(m => m.gender === 'male').length;
+      const females = t.members.filter(m => m.gender === 'female').length;
+      return males === 2 && females === 2;
+    }).length;
+    const totalParticipants = teams.reduce((s, t) => s + t.members.length, 0);
+    return { totalParticipants, idealTeams };
+  }, [teams]);
 
   const genderLabel = (g: string) => {
     if (g === 'male') return '♂';
@@ -47,36 +135,22 @@ export default function TeamMatchingPage() {
     return '◦';
   };
 
-  const majorLabel = (m: string) => {
-    if (m === 'business') return 'BIZ';
-    if (m === 'cs') return 'CS';
-    return 'OTH';
-  };
-
-  const badgeColor = (m: string) => {
-    if (m === 'business') return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
-    if (m === 'cs') return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
-    return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
-  };
-
   return (
     <div className="min-h-screen bg-background p-8">
-      <div className="max-w-5xl mx-auto space-y-8">
+      <div className="max-w-6xl mx-auto space-y-8">
         {/* Header */}
         <header>
-          <p className="text-sm uppercase tracking-wide text-primary/70 font-semibold">
-            Admin
-          </p>
+          <p className="text-sm uppercase tracking-wide text-primary/70 font-semibold">Admin</p>
           <h1 className="text-4xl font-bold text-primary">Team Matching</h1>
           <p className="text-foreground/70 mt-2">
-            Automatically form balanced teams of 4. The algorithm optimises for
-            an equal mix of <strong>2 male / 2 female</strong> and{' '}
-            <strong>2 business / 2 CS</strong> majors.
+            Automatically form balanced teams of 4. The algorithm optimises for an equal
+            gender split of <strong>2 male / 2 female</strong> per team.
+            Drag participants between teams to adjust before applying.
           </p>
         </header>
 
         {/* Actions */}
-        <div className="flex gap-4">
+        <div className="flex gap-4 flex-wrap">
           <button
             onClick={handlePreview}
             disabled={loading}
@@ -85,7 +159,7 @@ export default function TeamMatchingPage() {
             {loading ? 'Running algorithm…' : 'Preview Matching'}
           </button>
 
-          {result?.success && !applied && (
+          {teams.length > 0 && !applied && (
             <button
               onClick={handleApply}
               disabled={applying}
@@ -102,129 +176,108 @@ export default function TeamMatchingPage() {
           )}
         </div>
 
-        {/* Results */}
-        {result && !result.success && (
+        {/* Error */}
+        {error && (
           <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400">
-            Error: {result.error}
+            Error: {error}
           </div>
         )}
 
-        {result?.success && (
+        {teams.length > 0 && (
           <>
             {/* Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {[
-                { label: 'Total Participants', value: result.stats.total_participants },
-                { label: 'Partial Teams Filled', value: result.stats.partial_teams_filled },
-                { label: 'New Teams Formed', value: result.stats.new_teams_formed },
-                { label: 'Ideal Teams', value: result.stats.ideal_teams },
-                { label: 'Unmatched', value: result.stats.unmatched_count },
-              ].map((s) => (
-                <div
-                  key={s.label}
-                  className="p-4 bg-card rounded-lg border border-border text-center"
-                >
+                { label: 'Total Participants', value: stats.totalParticipants },
+                { label: 'Teams', value: teams.length },
+                { label: 'Ideal Teams (2M/2F)', value: stats.idealTeams },
+              ].map(s => (
+                <div key={s.label} className="p-4 bg-card rounded-lg border border-border text-center">
                   <p className="text-sm text-foreground/60">{s.label}</p>
                   <p className="text-2xl font-bold text-primary mt-1">{s.value}</p>
                 </div>
               ))}
             </div>
 
-            {/* Proposed teams */}
-            <section className="space-y-4">
-              <h2 className="text-2xl font-semibold text-foreground">
-                Proposed Teams ({result.proposed_teams.length})
-              </h2>
+            <p className="text-xs text-foreground/40">
+              Drag a participant row onto another team card to move them.
+            </p>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {result.proposed_teams.map((team, idx) => {
-                  const allMembers = [...team.existing_members, ...team.new_members];
-                  const ideal =
-                    allMembers.length === 4 &&
-                    allMembers.filter(p => p.gender === 'male').length === 2 &&
-                    allMembers.filter(p => p.gender === 'female').length === 2 &&
-                    allMembers.filter(p => p.major === 'business').length === 2 &&
-                    allMembers.filter(p => p.major === 'cs').length === 2;
+            {/* Team cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {teams.map(team => {
+                const males = team.members.filter(m => m.gender === 'male').length;
+                const females = team.members.filter(m => m.gender === 'female').length;
+                const ideal = team.members.length === 4 && males === 2 && females === 2;
+                const isOver = dragOverTeam === team.key;
 
-                  return (
-                    <div
-                      key={idx}
-                      className={`p-4 rounded-lg border ${
-                        ideal
-                          ? 'border-green-500/40 bg-green-500/5'
-                          : 'border-border bg-card'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-3">
-                        <h3 className="font-semibold text-foreground">
-                          {team.team_id ? 'Existing Team' : `New Team #${idx + 1}`}
-                        </h3>
+                return (
+                  <div
+                    key={team.key}
+                    onDragOver={e => onDragOver(e, team.key)}
+                    onDrop={() => onDrop(team.key)}
+                    className={`p-4 rounded-lg border transition-colors ${
+                      isOver
+                        ? 'border-primary/60 bg-primary/5'
+                        : ideal
+                        ? 'border-green-500/40 bg-green-500/5'
+                        : team.isLeftover
+                        ? 'border-amber-500/40 bg-amber-500/5'
+                        : 'border-border bg-card'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="font-semibold text-foreground text-sm">
+                        {team.isLeftover
+                          ? '⚠ Leftover Group'
+                          : team.team_id
+                          ? 'Existing Team'
+                          : `New Team`}
+                        <span className="text-foreground/40 font-normal ml-1">
+                          ({team.members.length} member{team.members.length !== 1 ? 's' : ''})
+                        </span>
+                      </h3>
+                      <div className="flex gap-1">
                         {ideal && (
-                          <span className="text-xs px-2 py-1 bg-green-500/20 text-green-400 rounded-full border border-green-500/30">
+                          <span className="text-xs px-2 py-0.5 bg-green-500/20 text-green-400 rounded-full border border-green-500/30">
                             ✓ Ideal
                           </span>
                         )}
-                      </div>
-
-                      <div className="space-y-2">
-                        {team.existing_members.map((m) => (
-                          <div
-                            key={m.id}
-                            className="flex items-center gap-2 text-sm text-foreground/60"
-                          >
-                            <span>{genderLabel(m.gender)}</span>
-                            <span className={`text-xs px-1.5 py-0.5 rounded border ${badgeColor(m.major)}`}>
-                              {majorLabel(m.major)}
-                            </span>
-                            <span>{m.name}</span>
-                            <span className="text-foreground/30 text-xs">(existing)</span>
-                          </div>
-                        ))}
-                        {team.new_members.map((m) => (
-                          <div
-                            key={m.id}
-                            className="flex items-center gap-2 text-sm text-foreground"
-                          >
-                            <span>{genderLabel(m.gender)}</span>
-                            <span className={`text-xs px-1.5 py-0.5 rounded border ${badgeColor(m.major)}`}>
-                              {majorLabel(m.major)}
-                            </span>
-                            <span className="font-medium">{m.name}</span>
-                            <span className="text-green-400 text-xs">+ new</span>
-                          </div>
-                        ))}
+                        <span className="text-xs px-2 py-0.5 bg-card border border-border rounded-full text-foreground/50">
+                          ♂{males} ♀{females}
+                        </span>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            </section>
 
-            {/* Unmatched */}
-            {result.unmatched.length > 0 && (
-              <section className="space-y-3">
-                <h2 className="text-2xl font-semibold text-foreground">
-                  Unmatched ({result.unmatched.length})
-                </h2>
-                <p className="text-sm text-foreground/60">
-                  Not enough participants remaining to form a full team of 4.
-                </p>
-                <div className="p-4 bg-card rounded-lg border border-border space-y-2">
-                  {result.unmatched.map((m) => (
-                    <div
-                      key={m.id}
-                      className="flex items-center gap-2 text-sm text-foreground"
-                    >
-                      <span>{genderLabel(m.gender)}</span>
-                      <span className={`text-xs px-1.5 py-0.5 rounded border ${badgeColor(m.major)}`}>
-                        {majorLabel(m.major)}
-                      </span>
-                      <span>{m.name}</span>
+                    <div className="space-y-1 min-h-[2rem]">
+                      {team.members.map(m => {
+                        const isDraggingThis = dragging?.memberId === m.id;
+                        return (
+                          <div
+                            key={m.id}
+                            draggable
+                            onDragStart={() => onDragStart(team.key, m.id)}
+                            onDragEnd={onDragEnd}
+                            className={`flex items-center gap-2 text-sm px-2 py-1 rounded cursor-grab active:cursor-grabbing select-none transition-opacity ${
+                              isDraggingThis
+                                ? 'opacity-30'
+                                : 'hover:bg-background/60 text-foreground'
+                            }`}
+                          >
+                            <span className="text-foreground/40 text-xs">⠿</span>
+                            <span>{genderLabel(m.gender)}</span>
+                            <span className="font-medium truncate">{m.name}</span>
+                          </div>
+                        );
+                      })}
+                      {team.members.length === 0 && (
+                        <p className="text-xs text-foreground/30 italic px-2 py-1">Empty — drop a participant here</p>
+                      )}
                     </div>
-                  ))}
-                </div>
-              </section>
-            )}
+                  </div>
+                );
+              })}
+            </div>
           </>
         )}
       </div>
