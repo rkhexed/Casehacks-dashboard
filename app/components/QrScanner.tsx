@@ -138,6 +138,7 @@ export default function QrScanner({ events, onCheckinSuccess }: QrScannerProps) 
                 console.error('Scanner error:', error);
                 setMessage({ type: 'error', text: 'Scanner error occurred' });
               }}
+              constraints={{ facingMode: 'environment' }}
               components={{ finder: true }}
               styles={{ container: { width: '100%', height: '100%' } }}
             />

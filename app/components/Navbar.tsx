@@ -14,34 +14,34 @@ export default function Navbar() {
     }`;
 
   return (
-    <nav className="bg-card border-b border-border p-4">
-      <div className="max-w-6xl mx-auto flex justify-between items-center">
-        <Link href="/dashboard" className="text-2xl font-bold text-primary">
+    <nav className="bg-card border-b border-border px-4 py-3 overflow-x-hidden">
+      <div className="max-w-6xl mx-auto flex items-center gap-4">
+        <Link href="/dashboard" className="text-xl sm:text-2xl font-bold text-primary shrink-0">
           CaseHacks
         </Link>
-        <div className="flex items-center gap-4">
-          <Link href="/dashboard" className={linkClass('/dashboard')}>
+        <div className="flex items-center gap-4 overflow-x-auto scrollbar-none min-w-0 pb-0.5">
+          <Link href="/dashboard" className={linkClass('/dashboard') + ' whitespace-nowrap'}>
             Dashboard
           </Link>
-          <Link href="/events" className={linkClass('/events')}>
+          <Link href="/events" className={linkClass('/events') + ' whitespace-nowrap'}>
             Events
           </Link>
-          <Link href="/scan" className={linkClass('/scan')}>
+          <Link href="/scan" className={linkClass('/scan') + ' whitespace-nowrap'}>
             Scan
           </Link>
-          <Link href="/dashboard/hackers" className={linkClass('/dashboard/hackers')}>
+          <Link href="/dashboard/hackers" className={linkClass('/dashboard/hackers') + ' whitespace-nowrap'}>
             Hackers
           </Link>
-          <Link href="/dashboard/questions" className={linkClass('/dashboard/questions')}>
+          <Link href="/dashboard/questions" className={linkClass('/dashboard/questions') + ' whitespace-nowrap'}>
             Questions
           </Link>
-          <Link href="/dashboard/team-matching" className={linkClass('/dashboard/team-matching')}>
+          <Link href="/dashboard/team-matching" className={linkClass('/dashboard/team-matching') + ' whitespace-nowrap'}>
             Team Matching
           </Link>
-          <Link href="/dashboard/sponsor" className={linkClass('/dashboard/sponsor')}>
+          <Link href="/dashboard/sponsor" className={linkClass('/dashboard/sponsor') + ' whitespace-nowrap'}>
             Sponsors
           </Link>
-          <Link href="/admin/approve" className={linkClass('/admin/approve')}>
+          <Link href="/admin/approve" className={linkClass('/admin/approve') + ' whitespace-nowrap'}>
             Admin
           </Link>
         </div>

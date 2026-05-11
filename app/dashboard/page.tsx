@@ -118,48 +118,64 @@ export default function DashboardPage() {
   );
 
   return (
-    <div className="min-h-screen bg-background p-8">
+    <div className="min-h-screen bg-background p-4 sm:p-8">
       <div className="max-w-6xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-4xl font-bold text-primary">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl sm:text-4xl font-bold text-primary">
             Check-in Monitor
           </h1>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             {userEmail && (
-              <span className="text-sm text-foreground/60">
+              <span className="hidden sm:block text-sm text-foreground/60">
                 {userEmail}
               </span>
             )}
             <button
               onClick={handleSignOut}
-              className="px-4 py-2 text-sm bg-card border border-border text-foreground rounded-lg hover:bg-foreground/5 transition-colors"
+              className="px-3 py-1.5 sm:px-4 sm:py-2 text-sm bg-card border border-border text-foreground rounded-lg hover:bg-foreground/5 transition-colors"
             >
               Sign Out
             </button>
           </div>
         </div>
         
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 grid gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+          {/* QR Scanner — first on mobile, right column on desktop */}
+          <div className="p-4 sm:p-8 bg-card rounded-lg shadow order-first lg:order-last lg:col-span-1">
+            <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-4">
+              QR Code Scanner
+            </h2>
+            {todaysEvents.length > 0 ? (
+              <QrScanner events={todaysEvents} onCheckinSuccess={fetchData} />
+            ) : (
+              <div className="p-8 bg-background rounded border-2 border-dashed border-border flex items-center justify-center text-center">
+                <p className="text-foreground/60">
+                  No events scheduled for today to scan for.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="lg:col-span-2 grid gap-4 sm:gap-6 order-last lg:order-first">
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="p-6 bg-card rounded-lg shadow">
-                <p className="text-sm text-foreground/60 mb-1">Total Check-ins</p>
-                <p className="text-3xl font-bold text-primary">{stats.totalCheckins}</p>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="p-3 sm:p-6 bg-card rounded-lg shadow">
+                <p className="text-xs sm:text-sm text-foreground/60 mb-1">Check-ins</p>
+                <p className="text-2xl sm:text-3xl font-bold text-primary">{stats.totalCheckins}</p>
               </div>
-              <div className="p-6 bg-card rounded-lg shadow">
-                <p className="text-sm text-foreground/60 mb-1">Events Today</p>
-                <p className="text-3xl font-bold text-primary">{todaysEvents.length}</p>
+              <div className="p-3 sm:p-6 bg-card rounded-lg shadow">
+                <p className="text-xs sm:text-sm text-foreground/60 mb-1">Events Today</p>
+                <p className="text-2xl sm:text-3xl font-bold text-primary">{todaysEvents.length}</p>
               </div>
-              <div className="p-6 bg-card rounded-lg shadow">
-                <p className="text-sm text-foreground/60 mb-1">Total Participants</p>
-                <p className="text-3xl font-bold text-primary">{stats.totalParticipants}</p>
+              <div className="p-3 sm:p-6 bg-card rounded-lg shadow">
+                <p className="text-xs sm:text-sm text-foreground/60 mb-1">Participants</p>
+                <p className="text-2xl sm:text-3xl font-bold text-primary">{stats.totalParticipants}</p>
               </div>
             </div>
 
             {/* Recent Check-ins */}
-            <div className="p-8 bg-card rounded-lg shadow">
-              <h2 className="text-2xl font-bold text-foreground mb-4">
+            <div className="p-4 sm:p-8 bg-card rounded-lg shadow">
+              <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-4">
                 Recent Check-ins
               </h2>
               {recentCheckins.length === 0 ? (
@@ -190,21 +206,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* QR Scanner */}
-          <div className="p-8 bg-card rounded-lg shadow lg:col-span-1">
-            <h2 className="text-2xl font-bold text-foreground mb-4">
-              QR Code Scanner
-            </h2>
-            {todaysEvents.length > 0 ? (
-              <QrScanner events={todaysEvents} onCheckinSuccess={fetchData} />
-            ) : (
-              <div className="p-12 bg-background rounded border-2 border-dashed border-border flex items-center justify-center text-center">
-                <p className="text-foreground/60">
-                  No events scheduled for today to scan for.
-                </p>
-              </div>
-            )}
-          </div>
+
         </div>
       </div>
     </div>
