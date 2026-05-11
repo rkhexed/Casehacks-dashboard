@@ -1,6 +1,17 @@
 'use server';
 
 import { createServerActionClient } from '@/lib/supabase-server';
+import { createClient } from '@supabase/supabase-js';
+
+// Service-role client bypasses RLS — used only for the points increment
+// so we don't need any SQL functions created in Supabase.
+function adminClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  );
+}
 
 export async function checkInUser(userId: string, eventId: string) {
   
@@ -42,54 +53,31 @@ export async function checkInUser(userId: string, eventId: string) {
     return { error: checkinError.message, success: false };
   }
 
-  // Could be bad if the checkin goes through but points dont will have to manually reset it. Maybe more validation before adding points?
-
-  // Get current points for event attendance of user
-  const { data: userAttendancePoints, error: pointsError } = await supabase
+  // Award +1 attendance point via the service-role client (bypasses RLS,
+  // no SQL functions required). Read current value then increment.
+  const admin = adminClient();
+  const { data: userData, error: readErr } = await admin
     .from('users')
     .select('event_attendance_points')
     .eq('id', userId)
     .single();
 
-  // Error handling
-  if (pointsError || !userAttendancePoints) {
-    console.error('[checkInUser] points fetch failed:', pointsError);
-    return { error: 'Failed to retrieve user points', success: false };
+  if (readErr || !userData) {
+    console.error('[checkInUser] points read failed:', readErr);
+    await supabase.from('checkins').delete().eq('user_id', userId).eq('event_id', eventId);
+    return { error: 'Points update failed — please try again.', success: false };
   }
 
-  const { data: eventPointsValue, error: eventPointsError } = await supabase
-    .from('events')
-    .select('point_value')
-    .eq('id', eventId)
-    .single();
-
-  if (eventPointsError || !eventPointsValue) {
-    console.error('[checkInUser] event points fetch failed:', eventPointsError);
-    return { error: 'Failed to retrieve event points value', success: false };
-  }
-
-  // Mmmm slop math, probably good to have some validation though
-  const currentPoints = Number(userAttendancePoints.event_attendance_points ?? 0);
-  console.log('Current points:', currentPoints);
-  const eventPoints = Number(eventPointsValue.point_value ?? 0);
-  console.log('Event points:', eventPoints);
-  const newPointValue = currentPoints + eventPoints;
-  console.log('New point value:', newPointValue);
-
-  const { data: updatedRows, error: updatePointsError } = await supabase
+  const newPoints = (userData.event_attendance_points ?? 0) + 1;
+  const { error: updateErr } = await admin
     .from('users')
-    .update({ event_attendance_points: newPointValue })
-    .eq('id', userId)
-    .select('id, event_attendance_points');
+    .update({ event_attendance_points: newPoints })
+    .eq('id', userId);
 
-
-  console.log('update error:', updatePointsError);
-  console.log('updated rows:', updatedRows);
-
-
-  if (updatePointsError) {
-    console.error('[checkInUser] points update failed:', updatePointsError);
-    return { error: updatePointsError.message, success: false };
+  if (updateErr) {
+    console.error('[checkInUser] points update failed:', updateErr);
+    await supabase.from('checkins').delete().eq('user_id', userId).eq('event_id', eventId);
+    return { error: 'Points update failed — please try again.', success: false };
   }
 
   return { 

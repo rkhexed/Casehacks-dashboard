@@ -20,7 +20,8 @@ interface RecentCheckin {
   id: string;
   user_name: string;
   created_at: string;
-  events: { title: string }[] | null;
+  event_id?: string;
+  events: { title: string } | null;  // Supabase join returns object, not array
 }
 
 export default function DashboardPage() {
@@ -61,7 +62,7 @@ export default function DashboardPage() {
         setTodaysEvents(eventsResult.data);
       }
       setStats(statsData);
-      setRecentCheckins(checkinsResult.checkins);
+      setRecentCheckins(checkinsResult.checkins as RecentCheckin[]);
     } catch {
       setFetchError('Failed to load dashboard data. Please refresh.');
     } finally {
@@ -82,7 +83,13 @@ export default function DashboardPage() {
         { event: 'INSERT', schema: 'public', table: 'checkins' },
         (payload) => {
           setStats((prev) => ({ ...prev, totalCheckins: prev.totalCheckins + 1 }));
-          const newCheckin = payload.new as RecentCheckin;
+          // Realtime payload has no join — look up event title from today's events list
+          const raw = payload.new as { id: string; user_name: string; created_at: string; event_id: string };
+          const eventTitle = todaysEvents.find(e => e.id === raw.event_id)?.title ?? null;
+          const newCheckin: RecentCheckin = {
+            ...raw,
+            events: eventTitle ? { title: eventTitle } : null,
+          };
           setRecentCheckins((prev) => [newCheckin, ...prev].slice(0, 5));
         }
       )
@@ -169,7 +176,7 @@ export default function DashboardPage() {
                         <div>
                           <p className="font-medium text-foreground">{checkin.user_name}</p>
                           <p className="text-xs text-foreground/60">
-                            Checked into "{checkin.events?.[0]?.title || 'an event'}"
+                            Checked into "{checkin.events?.title || 'an event'}"
                           </p>
                         </div>
                         <p className="text-xs text-foreground/60">

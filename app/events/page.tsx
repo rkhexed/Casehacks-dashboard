@@ -21,6 +21,14 @@ export default function EventsPage() {
   const [error, setError] = useState<string | null>(null);
   const supabase = createBrowserClient();
 
+  // Convert a UTC ISO string to the local "YYYY-MM-DDTHH:mm" format
+  // needed by datetime-local inputs, so edits show the correct local time.
+  const toLocalDatetimeValue = (isoString: string) => {
+    const d = new Date(isoString);
+    const offset = d.getTimezoneOffset() * 60000;
+    return new Date(d.getTime() - offset).toISOString().slice(0, 16);
+  };
+
   const fetchEvents = async () => {
     const { data, error } = await supabase
       .from('events')
@@ -72,11 +80,13 @@ export default function EventsPage() {
       return;
     }
 
+    // datetime-local gives "YYYY-MM-DDTHH:mm" with no timezone.
+    // new Date() treats it as local time — .toISOString() converts to UTC correctly.
     const eventData = {
       title: formData.get('title') as string,
       description: formData.get('description') as string || null,
-      starts_at: formData.get('starts_at') as string,
-      ends_at: formData.get('ends_at') as string,
+      starts_at: new Date(startsAt).toISOString(),
+      ends_at: new Date(endsAt).toISOString(),
       location: formData.get('location') as string || null,
     };
 
@@ -220,7 +230,7 @@ export default function EventsPage() {
                         type="datetime-local"
                         name="starts_at"
                         id="starts_at"
-                        defaultValue={editingEvent?.starts_at ? new Date(editingEvent.starts_at).toISOString().slice(0, 16) : ''}
+                        defaultValue={editingEvent?.starts_at ? toLocalDatetimeValue(editingEvent.starts_at) : ''}
                         required
                         className="w-full px-3 py-2 bg-background border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                       />
@@ -233,7 +243,7 @@ export default function EventsPage() {
                         type="datetime-local"
                         name="ends_at"
                         id="ends_at"
-                        defaultValue={editingEvent?.ends_at ? new Date(editingEvent.ends_at).toISOString().slice(0, 16) : ''}
+                        defaultValue={editingEvent?.ends_at ? toLocalDatetimeValue(editingEvent.ends_at) : ''}
                         required
                         className="w-full px-3 py-2 bg-background border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                       />
