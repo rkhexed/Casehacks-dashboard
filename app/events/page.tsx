@@ -12,6 +12,7 @@ interface Event {
   starts_at: string;
   ends_at: string;
   location: string | null;
+  point_value: number;
 }
 
 export default function EventsPage() {
@@ -33,7 +34,7 @@ export default function EventsPage() {
     const { data, error } = await supabase
       .from('events')
       .select('*')
-      .order('starts_at', { ascending: true });
+      .order('starts_at', { ascending: false });
 
     if (!error && data) {
       setEvents(data);
@@ -88,6 +89,7 @@ export default function EventsPage() {
       starts_at: new Date(startsAt).toISOString(),
       ends_at: new Date(endsAt).toISOString(),
       location: formData.get('location') as string || null,
+      point_value: parseInt(formData.get('point_value') as string) || 1,
     };
 
     if (editingEvent) {
@@ -160,6 +162,7 @@ export default function EventsPage() {
                         minute: '2-digit' 
                       })}</span>
                       {event.location && <span>📍 {event.location}</span>}
+                      <span>⭐ {event.point_value} pt{event.point_value !== 1 ? 's' : ''}</span>
                     </div>
                   </div>
                   <div className="flex gap-2 ml-4">
@@ -258,6 +261,20 @@ export default function EventsPage() {
                       name="location"
                       id="location"
                       defaultValue={editingEvent?.location || ''}
+                      className="w-full px-3 py-2 bg-background border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="point_value" className="block text-sm font-medium text-foreground mb-1">
+                      Attendance Points *
+                    </label>
+                    <input
+                      type="number"
+                      name="point_value"
+                      id="point_value"
+                      min={1}
+                      defaultValue={editingEvent?.point_value ?? 1}
+                      required
                       className="w-full px-3 py-2 bg-background border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                     />
                   </div>

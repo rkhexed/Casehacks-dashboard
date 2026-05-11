@@ -16,17 +16,24 @@ function adminClient() {
 export async function checkInUser(userId: string, eventId: string) {
   
   const supabase = await createServerActionClient();
-  // First, get the user details
-  const { data: user, error: userError } = await supabase
-    .from('users')
-    .select('id, name, email')
-    .eq('id', userId)
-    .single();
 
-  if (userError || !user) {
-    console.error('[checkInUser] user lookup failed:', userError);
+  // Fetch user and event point_value in parallel
+  const [userResult, eventResult] = await Promise.all([
+    supabase.from('users').select('id, name, email').eq('id', userId).single(),
+    supabase.from('events').select('point_value').eq('id', eventId).single(),
+  ]);
+
+  if (userResult.error || !userResult.data) {
+    console.error('[checkInUser] user lookup failed:', userResult.error);
     return { error: 'User not found', success: false };
   }
+  if (eventResult.error || !eventResult.data) {
+    console.error('[checkInUser] event lookup failed:', eventResult.error);
+    return { error: 'Event not found', success: false };
+  }
+
+  const user = userResult.data;
+  const pointValue: number = eventResult.data.point_value ?? 1;
 
   // Check if already checked in
   const { data: existingCheckin } = await supabase
@@ -53,29 +60,16 @@ export async function checkInUser(userId: string, eventId: string) {
     return { error: checkinError.message, success: false };
   }
 
-  // Award +1 attendance point via the service-role client (bypasses RLS,
-  // no SQL functions required). Read current value then increment.
+  // Award points atomically via the Supabase RPC (avoids read-then-write race condition).
+  // Uses the service-role client to bypass RLS.
   const admin = adminClient();
-  const { data: userData, error: readErr } = await admin
-    .from('users')
-    .select('event_attendance_points')
-    .eq('id', userId)
-    .single();
+  const { error: rpcErr } = await admin.rpc('increment_interaction_points', {
+    user_id: userId,
+    amount: pointValue,
+  });
 
-  if (readErr || !userData) {
-    console.error('[checkInUser] points read failed:', readErr);
-    await supabase.from('checkins').delete().eq('user_id', userId).eq('event_id', eventId);
-    return { error: 'Points update failed — please try again.', success: false };
-  }
-
-  const newPoints = (userData.event_attendance_points ?? 0) + 1;
-  const { error: updateErr } = await admin
-    .from('users')
-    .update({ event_attendance_points: newPoints })
-    .eq('id', userId);
-
-  if (updateErr) {
-    console.error('[checkInUser] points update failed:', updateErr);
+  if (rpcErr) {
+    console.error('[checkInUser] RPC increment failed:', rpcErr);
     await supabase.from('checkins').delete().eq('user_id', userId).eq('event_id', eventId);
     return { error: 'Points update failed — please try again.', success: false };
   }
