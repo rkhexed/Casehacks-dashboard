@@ -62,23 +62,24 @@ export async function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
 
-  // Protect /dashboard routes
-  if (pathname.startsWith('/dashboard')) {
+  // Protect /dashboard, /events, and /scan routes
+  if (pathname.startsWith('/dashboard') || pathname.startsWith('/events') || pathname.startsWith('/scan')) {
     if (!user) {
-      // Not authenticated - redirect to login
       return NextResponse.redirect(new URL('/login', request.url));
     }
 
-    // Check if user is approved organizer
-    const { data: approvedOrg, error } = await supabase
-      .from('approved_organizers')
-      .select('email')
-      .eq('email', user.email)
-      .single();
+    // /events and /scan only require login — no organizer approval check needed for scanning
+    if (pathname.startsWith('/dashboard')) {
+      // Check if user is approved organizer
+      const { data: approvedOrg, error } = await supabase
+        .from('approved_organizers')
+        .select('email')
+        .eq('email', user.email)
+        .single();
 
-    if (error || !approvedOrg) {
-      // Not approved - redirect to access denied page
-      return NextResponse.redirect(new URL('/access-denied', request.url));
+      if (error || !approvedOrg) {
+        return NextResponse.redirect(new URL('/access-denied', request.url));
+      }
     }
   }
 
