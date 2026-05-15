@@ -74,6 +74,17 @@ export async function checkInUser(userId: string, eventId: string) {
     return { error: 'Points update failed — please try again.', success: false };
   }
 
+  // Award scanning bounties if check-in bounty conditions are met
+  const { error: bountyErr } = await admin.rpc('check_and_award_bounties', {
+    user_id: userId,
+    bounty_type: 'checkin',
+    event_id: eventId,
+  });
+
+  if (bountyErr) {
+    console.error('[checkInUser] bounty check failed:', bountyErr);
+  }
+
   return { 
     success: true, 
     userName: user.name || user.email,
