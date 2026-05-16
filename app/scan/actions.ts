@@ -74,15 +74,32 @@ export async function checkInUser(userId: string, eventId: string) {
     return { error: 'Points update failed — please try again.', success: false };
   }
 
-  // Award scanning bounties if check-in bounty conditions are met
-  const { error: bountyErr } = await admin.rpc('check_and_award_bounties', {
-    user_id: userId,
-    bounty_type: 'checkin',
-    event_id: eventId,
-  });
+  // Award checkin bounties (ported from hacker portal check_and_award_bounties)
+  try {
+    const [bountiesResult, completedResult] = await Promise.all([
+      admin.from('bounties').select('*').eq('type', 'checkin'),
+      admin.from('user_bounties').select('bounty_id').eq('user_id', userId),
+    ]);
 
-  if (bountyErr) {
-    console.error('[checkInUser] bounty check failed:', bountyErr);
+    const bounties = bountiesResult.data ?? [];
+    const completedIds = new Set((completedResult.data ?? []).map((r: { bounty_id: string }) => r.bounty_id));
+
+    for (const bounty of bounties) {
+      if (completedIds.has(bounty.id)) continue;
+
+      // Specific-event bounty: must match current event; count = 1 (presence is enough)
+      // No event_id on bounty: count = 0, threshold never met — skip
+      if (!bounty.event_id) continue;
+      if (bounty.event_id !== eventId) continue;
+      const count = 1;
+
+      if (count >= bounty.threshold) {
+        await admin.from('user_bounties').insert({ user_id: userId, bounty_id: bounty.id });
+        await admin.rpc('increment_interaction_points', { user_id: userId, amount: bounty.points });
+      }
+    }
+  } catch (err) {
+    console.error('[checkInUser] bounty award failed:', err);
   }
 
   return { 
