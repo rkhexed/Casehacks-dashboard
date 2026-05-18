@@ -18,8 +18,8 @@ export default function Navbar() {
     <nav className="bg-card border-b border-border px-4 py-3 overflow-x-hidden">
       <div className="max-w-6xl mx-auto flex items-center gap-4">
         <Link href="/dashboard" className="shrink-0">
-          <Image src="/CaseLogo.png" alt="CaseHacks" width={0} height={0} style={{ height: '36px', width: 'auto' }} className="hidden sm:block" priority />
-          <Image src="/CaseLogoMobile.png" alt="CaseHacks" width={0} height={0} style={{ height: '36px', width: 'auto' }} className="block sm:hidden" priority />
+          <Image src="/CaseLogo.png" alt="CaseHacks" width={181} height={105} style={{ height: '36px', width: 'auto' }} className="hidden sm:block" priority />
+          <Image src="/CaseLogoMobile.png" alt="CaseHacks" width={577} height={133} style={{ height: '36px', width: 'auto' }} className="block sm:hidden" priority />
         </Link>
         <div className="flex items-center gap-4 overflow-x-auto scrollbar-none min-w-0 pb-0.5">
           <Link href="/dashboard" className={linkClass('/dashboard') + ' whitespace-nowrap'}>
