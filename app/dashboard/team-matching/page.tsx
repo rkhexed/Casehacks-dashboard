@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
-import { previewTeamMatching, applyProposedTeams } from './actions';
+import { previewTeamMatching, applyProposedTeams, getAcceptedParticipants } from './actions';
 import type { Participant } from './actions';
 
 interface DragTeam {
@@ -19,6 +19,49 @@ export default function TeamMatchingPage() {
   const [applying, setApplying] = useState(false);
   const [applied, setApplied] = useState(false);
 
+  // No-show management
+  const [allParticipants, setAllParticipants] = useState<{ id: string; name: string }[]>([]);
+  const [noShows, setNoShows] = useState<{ id: string; name: string }[]>([]);
+  const [noShowSearch, setNoShowSearch] = useState('');
+  const [showDropdown, setShowDropdown] = useState(false);
+  const noShowRef = useRef<HTMLDivElement>(null);
+
+  // Load participant list for the no-show selector
+  useEffect(() => {
+    getAcceptedParticipants().then(setAllParticipants);
+  }, []);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (noShowRef.current && !noShowRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const noShowIds = useMemo(() => new Set(noShows.map(n => n.id)), [noShows]);
+
+  const filteredParticipants = useMemo(() =>
+    allParticipants.filter(p =>
+      !noShowIds.has(p.id) &&
+      p.name.toLowerCase().includes(noShowSearch.toLowerCase())
+    ),
+    [allParticipants, noShowIds, noShowSearch]
+  );
+
+  const addNoShow = (p: { id: string; name: string }) => {
+    setNoShows(prev => [...prev, p]);
+    setNoShowSearch('');
+    setShowDropdown(false);
+  };
+
+  const removeNoShow = (id: string) => {
+    setNoShows(prev => prev.filter(n => n.id !== id));
+  };
+
   // drag state: which participant from which team is being dragged
   const [dragging, setDragging] = useState<{ teamKey: string; memberId: string } | null>(null);
   const [dragOverTeam, setDragOverTeam] = useState<string | null>(null);
@@ -28,7 +71,7 @@ export default function TeamMatchingPage() {
     setApplied(false);
     setError(null);
     try {
-      const data = await previewTeamMatching();
+      const data = await previewTeamMatching(noShows.map(n => n.id));
       if (!data.success) {
         setError(data.error ?? 'Algorithm error');
         setTeams([]);
@@ -149,6 +192,46 @@ export default function TeamMatchingPage() {
           </p>
         </header>
 
+        {/* No-show selector */}
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-foreground/70">No-shows — exclude from matching:</p>
+          <div ref={noShowRef} className="relative">
+            <input
+              type="text"
+              placeholder="Search participants to mark as no-show…"
+              value={noShowSearch}
+              onChange={e => { setNoShowSearch(e.target.value); setShowDropdown(true); }}
+              onFocus={() => setShowDropdown(true)}
+              className="w-full sm:w-96 px-4 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary text-foreground"
+            />
+            {showDropdown && filteredParticipants.length > 0 && (
+              <ul className="absolute z-10 mt-1 w-full sm:w-96 max-h-52 overflow-y-auto bg-card border border-border rounded-lg shadow-lg">
+                {filteredParticipants.slice(0, 20).map(p => (
+                  <li key={p.id}>
+                    <button
+                      type="button"
+                      onClick={() => addNoShow(p)}
+                      className="w-full text-left px-4 py-2 text-sm hover:bg-background/60 text-foreground"
+                    >
+                      {p.name}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          {noShows.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-2">
+              {noShows.map(n => (
+                <span key={n.id} className="flex items-center gap-1.5 px-3 py-1 bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs rounded-full">
+                  {n.name}
+                  <button onClick={() => removeNoShow(n.id)} className="hover:text-amber-200 leading-none">×</button>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Actions */}
         <div className="flex gap-4 flex-wrap">
           <button
@@ -156,7 +239,7 @@ export default function TeamMatchingPage() {
             disabled={loading}
             className="px-6 py-3 bg-primary text-white font-semibold rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
           >
-            {loading ? 'Running algorithm…' : 'Preview Matching'}
+            {loading ? 'Running algorithm…' : teams.length > 0 ? `Rerun${noShows.length > 0 ? ` (excluding ${noShows.length} no-show${noShows.length !== 1 ? 's' : ''})` : ''}` : 'Preview Matching'}
           </button>
 
           {teams.length > 0 && !applied && (

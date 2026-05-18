@@ -19,7 +19,7 @@ export async function checkInUser(userId: string, eventId: string) {
 
   // Fetch user and event point_value in parallel
   const [userResult, eventResult] = await Promise.all([
-    supabase.from('users').select('id, name, email').eq('id', userId).single(),
+    supabase.from('users').select('id, name, email, event_attendance_points').eq('id', userId).single(),
     supabase.from('events').select('point_value').eq('id', eventId).single(),
   ]);
 
@@ -34,6 +34,7 @@ export async function checkInUser(userId: string, eventId: string) {
 
   const user = userResult.data;
   const pointValue: number = eventResult.data.point_value ?? 1;
+  const currentAttendancePoints: number = user.event_attendance_points ?? 0;
 
   // Check if already checked in
   const { data: existingCheckin } = await supabase
@@ -60,16 +61,16 @@ export async function checkInUser(userId: string, eventId: string) {
     return { error: checkinError.message, success: false };
   }
 
-  // Award points atomically via the Supabase RPC (avoids read-then-write race condition).
-  // Uses the service-role client to bypass RLS.
+  // Award event_attendance_points (not social/interaction points).
+  // No RPC exists for this column so we increment directly via the service-role client.
   const admin = adminClient();
-  const { error: rpcErr } = await admin.rpc('increment_interaction_points', {
-    user_id: userId,
-    amount: pointValue,
-  });
+  const { error: pointsErr } = await admin
+    .from('users')
+    .update({ event_attendance_points: currentAttendancePoints + pointValue })
+    .eq('id', userId);
 
-  if (rpcErr) {
-    console.error('[checkInUser] RPC increment failed:', rpcErr);
+  if (pointsErr) {
+    console.error('[checkInUser] event_attendance_points update failed:', pointsErr);
     await supabase.from('checkins').delete().eq('user_id', userId).eq('event_id', eventId);
     return { error: 'Points update failed — please try again.', success: false };
   }

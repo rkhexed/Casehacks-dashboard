@@ -1,37 +1,55 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
-import { getSponsorsHackers, type SponsorHacker } from '../sponsor-export/actions';
+import { useEffect, useState, useRef } from 'react';
+import { getSponsorsHackersPaginated, type SponsorHacker } from '../sponsor-export/actions';
+
+const SPONSOR_PAGE_SIZE = 50;
 
 export default function SponsorPage() {
   const [hackers, setHackers] = useState<SponsorHacker[]>([]);
   const [schools, setSchools] = useState<string[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
   const [schoolFilter, setSchoolFilter] = useState('');
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const topRef = useRef<HTMLDivElement>(null);
 
+  // Debounce search input
   useEffect(() => {
-    getSponsorsHackers().then(({ hackers, schools, error }) => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(0);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Server-side fetch on page / search / school filter change
+  useEffect(() => {
+    setIsLoading(true);
+    setExpandedId(null);
+    getSponsorsHackersPaginated(page, debouncedSearch, schoolFilter).then(({ hackers, total, schools, error }) => {
       if (error) { setError(error); }
-      else { setHackers(hackers); setSchools(schools); }
+      else {
+        setHackers(hackers);
+        setTotal(total);
+        if (schools.length > 0) setSchools(schools);
+      }
       setIsLoading(false);
     });
-  }, []);
+  }, [page, debouncedSearch, schoolFilter]);
 
-  const filtered = useMemo(() => {
-    return hackers.filter(h => {
-      const matchesSchool = !schoolFilter || h.school === schoolFilter;
-      const term = search.toLowerCase();
-      const matchesSearch = !search ||
-        h.name?.toLowerCase().includes(term) ||
-        h.email.toLowerCase().includes(term) ||
-        h.major?.toLowerCase().includes(term);
-      return matchesSchool && matchesSearch;
-    });
-  }, [hackers, schoolFilter, search]);
+  const totalPages = Math.ceil(total / SPONSOR_PAGE_SIZE);
+  const filtered = hackers; // already filtered server-side
+
+  const goToPage = (next: number) => {
+    setPage(next);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const handleExport = async () => {
     setExporting(true);
@@ -83,24 +101,22 @@ export default function SponsorPage() {
     );
   }
 
-  const resumeCount = filtered.filter(h => h.resumeFileName).length;
-
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
-      <div className="max-w-6xl mx-auto space-y-6">
+      <div ref={topRef} className="max-w-6xl mx-auto space-y-6">
 
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-4xl font-bold text-primary">Sponsor View</h1>
             <p className="text-foreground/60 mt-1">
-              {filtered.length} hacker{filtered.length !== 1 ? 's' : ''}
-              {schoolFilter ? ` from ${schoolFilter}` : ''} · {resumeCount} resume{resumeCount !== 1 ? 's' : ''} available
+              {total} hacker{total !== 1 ? 's' : ''}
+              {schoolFilter ? ` from ${schoolFilter}` : ''}
             </p>
           </div>
           <button
             onClick={handleExport}
-            disabled={exporting || resumeCount === 0}
+            disabled={exporting || filtered.filter(h => h.resumeFileName).length === 0}
             className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
           >
             {exporting ? (
@@ -116,7 +132,7 @@ export default function SponsorPage() {
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M8 12l4 4m0 0l4-4m-4 4V4" />
                 </svg>
-                Export Resumes{schoolFilter ? ` (${schoolFilter})` : ' (All)'}
+              Export Resumes{schoolFilter ? ` (${schoolFilter})` : ' (All)'}
               </>
             )}
           </button>
@@ -133,7 +149,7 @@ export default function SponsorPage() {
           />
           <select
             value={schoolFilter}
-            onChange={e => { setSchoolFilter(e.target.value); setExpandedId(null); }}
+            onChange={e => { setSchoolFilter(e.target.value); setExpandedId(null); setPage(0); }}
             className="px-4 py-2.5 bg-card border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary min-w-[220px]"
           >
             <option value="">All Universities</option>
@@ -144,8 +160,9 @@ export default function SponsorPage() {
         </div>
 
         {/* Hacker list */}
+        <div className={`transition-opacity duration-150 ${isLoading ? 'opacity-60 pointer-events-none' : ''}`}>
         {filtered.length === 0 ? (
-          <div className="text-center py-16 text-foreground/40">No hackers match your filters.</div>
+          <div className="text-center py-16 text-foreground/40">{isLoading ? 'Loading…' : 'No hackers match your filters.'}</div>
         ) : (
           <div className="space-y-2">
             {filtered.map(hacker => (
@@ -226,6 +243,31 @@ export default function SponsorPage() {
                 )}
               </div>
             ))}
+          </div>
+        )}
+        </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => goToPage(Math.max(0, page - 1))}
+              disabled={page === 0 || isLoading}
+              className="px-4 py-2 text-sm bg-card border border-border rounded-lg text-foreground hover:bg-foreground/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              ← Previous
+            </button>
+            <span className="text-sm text-foreground/60 text-center">
+              <span className="block">Page {page + 1} of {totalPages}</span>
+              <span className="block text-xs">Showing {page * SPONSOR_PAGE_SIZE + 1}–{Math.min((page + 1) * SPONSOR_PAGE_SIZE, total)} of {total}</span>
+            </span>
+            <button
+              onClick={() => goToPage(Math.min(totalPages - 1, page + 1))}
+              disabled={page >= totalPages - 1 || isLoading}
+              className="px-4 py-2 text-sm bg-card border border-border rounded-lg text-foreground hover:bg-foreground/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Next →
+            </button>
           </div>
         )}
       </div>

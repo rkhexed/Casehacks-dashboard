@@ -203,8 +203,9 @@ function getSupabase() {
 
 /**
  * Preview the algorithm's output without writing anything to the database.
+ * @param excludeIds - user IDs to treat as no-shows and exclude from matching
  */
-export async function previewTeamMatching(): Promise<MatchingResult> {
+export async function previewTeamMatching(excludeIds: string[] = []): Promise<MatchingResult> {
   const supabase = getSupabase();
 
   // 1. Fetch all accepted hackers
@@ -223,13 +224,17 @@ export async function previewTeamMatching(): Promise<MatchingResult> {
     };
   }
 
+  const excludeSet = new Set(excludeIds);
+
   // 2. Classify raw field values
-  const participants: Participant[] = (hackers ?? []).map(h => ({
-    id: h.id,
-    name: h.name ?? 'Unknown',
-    gender: classifyGender(h.gender ?? ''),
-    team_id: h.team_id,
-  }));
+  const participants: Participant[] = (hackers ?? [])
+    .filter(h => !excludeSet.has(h.id))
+    .map(h => ({
+      id: h.id,
+      name: h.name ?? 'Unknown',
+      gender: classifyGender(h.gender ?? ''),
+      team_id: h.team_id,
+    }));
 
   // 3. Separate into partial teams and singles
   const teamMap = new Map<string, Participant[]>();
@@ -328,4 +333,18 @@ export async function applyProposedTeams(
   }
 
   return { success: true };
+}
+
+/**
+ * Fetch all accepted participants for the no-show selector UI.
+ */
+export async function getAcceptedParticipants(): Promise<{ id: string; name: string }[]> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('users')
+    .select('id, name')
+    .eq('status', 'accepted')
+    .order('name', { ascending: true });
+  if (error) return [];
+  return (data ?? []).map(u => ({ id: u.id, name: u.name ?? u.id }));
 }

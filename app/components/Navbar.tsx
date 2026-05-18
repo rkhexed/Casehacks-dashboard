@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 
 export default function Navbar() {
@@ -16,8 +17,9 @@ export default function Navbar() {
   return (
     <nav className="bg-card border-b border-border px-4 py-3 overflow-x-hidden">
       <div className="max-w-6xl mx-auto flex items-center gap-4">
-        <Link href="/dashboard" className="text-xl sm:text-2xl font-bold text-primary shrink-0">
-          CaseHacks
+        <Link href="/dashboard" className="shrink-0">
+          <Image src="/CaseLogo.png" alt="CaseHacks" width={0} height={0} style={{ height: '36px', width: 'auto' }} className="hidden sm:block" priority />
+          <Image src="/CaseLogoMobile.png" alt="CaseHacks" width={0} height={0} style={{ height: '36px', width: 'auto' }} className="block sm:hidden" priority />
         </Link>
         <div className="flex items-center gap-4 overflow-x-auto scrollbar-none min-w-0 pb-0.5">
           <Link href="/dashboard" className={linkClass('/dashboard') + ' whitespace-nowrap'}>

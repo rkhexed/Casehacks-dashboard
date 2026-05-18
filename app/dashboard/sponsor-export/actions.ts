@@ -83,3 +83,85 @@ export async function getSponsorsHackers(): Promise<{
 
   return { hackers, schools, error: null };
 }
+
+const SPONSOR_PAGE_SIZE = 50;
+
+/**
+ * Paginated + searchable version used by the Sponsor UI.
+ * Schools list is returned only on the first call (page 0, no search) so the
+ * dropdown can be populated without an extra round-trip.
+ */
+export async function getSponsorsHackersPaginated(
+  page = 0,
+  search = '',
+  school = '',
+): Promise<{
+  hackers: SponsorHacker[];
+  total: number;
+  schools: string[];
+  error: string | null;
+}> {
+  const supabase = adminClient();
+
+  const from = page * SPONSOR_PAGE_SIZE;
+  const to = from + SPONSOR_PAGE_SIZE - 1;
+
+  let query = supabase
+    .from('users')
+    .select('id, name, email, school, major, github, linkedin, other, status, resume', { count: 'exact' });
+
+  if (search) {
+    query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%,major.ilike.%${search}%`);
+  }
+  if (school) {
+    query = query.ilike('school', school);
+  }
+
+  const { data: users, error, count } = await query
+    .order('name', { ascending: true })
+    .range(from, to);
+
+  if (error) return { hackers: [], total: 0, schools: [], error: error.message };
+
+  // Generate signed URLs for this page's resumes
+  const withResume = (users ?? []).filter(u => u.resume);
+  let signedUrlMap: Record<string, string> = {};
+
+  if (withResume.length > 0) {
+    const { data: signed, error: signErr } = await supabase.storage
+      .from('resumes')
+      .createSignedUrls(withResume.map(u => u.resume as string), SIGNED_URL_EXPIRY);
+    if (!signErr) {
+      signed?.forEach((entry, i) => {
+        if (entry.signedUrl) signedUrlMap[withResume[i].resume as string] = entry.signedUrl;
+      });
+    }
+  }
+
+  const titleCase = (s: string) => s.trim().replace(/\b\w/g, c => c.toUpperCase());
+
+  const hackers: SponsorHacker[] = (users ?? []).map(u => ({
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    school: u.school ? titleCase(u.school) : null,
+    major: u.major,
+    github: u.github,
+    linkedin: u.linkedin,
+    portfolio: u.other,
+    status: u.status,
+    resumeFileName: u.resume ?? null,
+    resumeSignedUrl: u.resume ? (signedUrlMap[u.resume] ?? null) : null,
+  }));
+
+  // Fetch schools list for the dropdown (all unique schools, unfiltered)
+  const { data: schoolRows } = await supabase
+    .from('users')
+    .select('school')
+    .not('school', 'is', null);
+  const schools = [...new Set((schoolRows ?? [])
+    .map(r => r.school ? titleCase(r.school) : null)
+    .filter(Boolean) as string[])].sort();
+
+  return { hackers, total: count ?? 0, schools, error: null };
+}
