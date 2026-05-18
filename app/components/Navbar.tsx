@@ -16,12 +16,12 @@ export default function Navbar() {
 
   return (
     <nav className="bg-card border-b border-border px-4 py-3 overflow-x-hidden">
-      <div className="max-w-6xl mx-auto flex items-center gap-4">
-        <Link href="/dashboard" className="shrink-0">
+      <div className="max-w-6xl mx-auto flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+        <Link href="/dashboard" className="shrink-0 flex justify-center sm:justify-start">
           <Image src="/CaseLogo.png" alt="CaseHacks" width={181} height={105} style={{ height: '36px', width: 'auto' }} className="hidden sm:block" priority />
           <Image src="/CaseLogoMobile.png" alt="CaseHacks" width={577} height={133} style={{ height: '36px', width: 'auto' }} className="block sm:hidden" priority />
         </Link>
-        <div className="flex items-center gap-4 overflow-x-auto scrollbar-none min-w-0 pb-0.5">
+        <div className="flex items-center justify-center sm:justify-start gap-4 overflow-x-auto scrollbar-none min-w-0 pb-0.5">
           <Link href="/dashboard" className={linkClass('/dashboard') + ' whitespace-nowrap'}>
             Dashboard
           </Link>
