@@ -208,11 +208,12 @@ function getSupabase() {
 export async function previewTeamMatching(excludeIds: string[] = []): Promise<MatchingResult> {
   const supabase = getSupabase();
 
-  // 1. Fetch all accepted hackers
+  // 1. Fetch all accepted + RSVP'd hackers
   const { data: hackers, error } = await supabase
     .from('users')
     .select('id, name, gender, team_id')
-    .eq('status', 'accepted');
+    .eq('status', 'accepted')
+    .eq('checked_rsvp', true);
 
   if (error) {
     return {
@@ -344,6 +345,7 @@ export async function getAcceptedParticipants(): Promise<{ id: string; name: str
     .from('users')
     .select('id, name')
     .eq('status', 'accepted')
+    .eq('checked_rsvp', true)
     .order('name', { ascending: true });
   if (error) return [];
   return (data ?? []).map(u => ({ id: u.id, name: u.name ?? u.id }));
