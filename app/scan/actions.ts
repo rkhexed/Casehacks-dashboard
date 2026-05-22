@@ -157,7 +157,9 @@ export async function getDashboardStats() {
 
   const { count: totalParticipants } = await supabase
     .from('users')
-    .select('*', { count: 'exact', head: true });
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'accepted')
+    .eq('checked_rsvp', true);
 
   return { 
     totalCheckins: totalCheckins ?? 0, 
