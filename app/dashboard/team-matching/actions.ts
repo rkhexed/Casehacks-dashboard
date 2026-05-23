@@ -207,28 +207,29 @@ function getSupabase() {
 export async function previewTeamMatching(excludeIds: string[] = []): Promise<MatchingResult> {
   const supabase = getSupabase();
 
-  // 1. Fetch all accepted + RSVP'd hackers
-  const { data: hackers, error } = await supabase
-    .from('users')
-    .select('id, name, gender, team_id')
-    .eq('status', 'accepted')
-    .eq('checked_rsvp', true);
+  // 1. Fetch all accepted hackers (RSVP'd or checked in)
+  const [hackersRes, checkinsRes] = await Promise.all([
+    supabase.from('users').select('id, name, gender, team_id, checked_rsvp').eq('status', 'accepted'),
+    supabase.from('checkins').select('user_id'),
+  ]);
 
-  if (error) {
+  if (hackersRes.error) {
     return {
       success: false,
-      error: error.message,
+      error: hackersRes.error.message,
       proposed_teams: [],
       unmatched: [],
       stats: { total_participants: 0, partial_teams_filled: 0, new_teams_formed: 0, unmatched_count: 0, ideal_teams: 0 },
     };
   }
 
+  const checkedInIds = new Set((checkinsRes.data ?? []).map(c => c.user_id));
   const excludeSet = new Set(excludeIds);
 
-  // 2. Classify raw field values
-  const participants: Participant[] = (hackers ?? [])
+  // 2. Classify raw field values — only include people who are RSVP'd AND physically checked in
+  const participants: Participant[] = (hackersRes.data ?? [])
     .filter(h => !excludeSet.has(h.id))
+    .filter(h => h.checked_rsvp === true && checkedInIds.has(h.id))
     .map(h => ({
       id: h.id,
       name: h.name ?? 'Unknown',
@@ -338,12 +339,13 @@ export async function applyProposedTeams(
  */
 export async function getAcceptedParticipants(): Promise<{ id: string; name: string }[]> {
   const supabase = getSupabase();
-  const { data, error } = await supabase
-    .from('users')
-    .select('id, name')
-    .eq('status', 'accepted')
-    .eq('checked_rsvp', true)
-    .order('name', { ascending: true });
-  if (error) return [];
-  return (data ?? []).map(u => ({ id: u.id, name: u.name ?? u.id }));
+  const [usersRes, checkinsRes] = await Promise.all([
+    supabase.from('users').select('id, name, checked_rsvp').eq('status', 'accepted').order('name', { ascending: true }),
+    supabase.from('checkins').select('user_id'),
+  ]);
+  if (usersRes.error) return [];
+  const checkedInIds = new Set((checkinsRes.data ?? []).map(c => c.user_id));
+  return (usersRes.data ?? [])
+    .filter(u => u.checked_rsvp === true && checkedInIds.has(u.id))
+    .map(u => ({ id: u.id, name: u.name ?? u.id }));
 }
