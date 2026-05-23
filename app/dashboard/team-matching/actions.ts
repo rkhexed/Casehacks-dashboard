@@ -177,13 +177,12 @@ function buildTeams(
     });
   }
 
-  // Any remaining (1-3 people) go into a leftover team so they still get assigned
+  // Any remaining people (< 4) still form a team — incomplete but valid
   if (remaining.length > 0) {
     proposed.push({
       team_id: null,
       existing_members: [],
       new_members: remaining,
-      isLeftover: true,
     });
   }
   return { proposed, unmatched: [] };
@@ -304,9 +303,7 @@ export async function applyProposedTeams(
     let teamId = team.team_id;
 
     if (!teamId) {
-      const teamName = team.isLeftover
-        ? 'Leftover Team'
-        : `Auto-Team: ${team.memberIds.map(id => nameMap[id]).join(', ')}`.slice(0, 100);
+      const teamName = `Auto-Team: ${team.memberIds.map(id => nameMap[id]).join(', ')}`.slice(0, 100);
 
       const { data: newTeam, error: createErr } = await supabase
         .from('teams')

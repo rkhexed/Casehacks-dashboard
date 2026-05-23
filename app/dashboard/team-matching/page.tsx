@@ -87,7 +87,7 @@ export default function TeamMatchingPage() {
         data.proposed_teams.map((t, i) => ({
           key: `team-${i}`,
           team_id: t.team_id,
-          isLeftover: t.isLeftover ?? false,
+          isLeftover: false,
           members: [...t.existing_members, ...t.new_members],
         }))
       );
@@ -292,6 +292,7 @@ export default function TeamMatchingPage() {
                 const males = team.members.filter(m => m.gender === 'male').length;
                 const females = team.members.filter(m => m.gender === 'female').length;
                 const ideal = team.members.length === 4 && males === 2 && females === 2;
+                const isIncomplete = team.members.length < 4;
                 const isOver = dragOverTeam === team.key;
 
                 return (
@@ -304,17 +305,17 @@ export default function TeamMatchingPage() {
                         ? 'border-primary/60 bg-primary/5'
                         : ideal
                         ? 'border-green-500/40 bg-green-500/5'
-                        : team.isLeftover
+                        : isIncomplete
                         ? 'border-amber-500/40 bg-amber-500/5'
                         : 'border-border bg-card'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="font-semibold text-foreground text-sm">
-                        {team.isLeftover
-                          ? '⚠ Leftover Group'
-                          : team.team_id
+                        {team.team_id
                           ? 'Existing Team'
+                          : isIncomplete
+                          ? '⚠ Incomplete Team'
                           : `New Team`}
                         <span className="text-foreground/40 font-normal ml-1">
                           ({team.members.length} member{team.members.length !== 1 ? 's' : ''})
